@@ -1,11 +1,11 @@
-// Field Shift dashboard page, served by server.js on route "/".
+// TerraTech dashboard page, served by server.js on route "/".
 // Note: do not use backticks or dollar-curly-brace sequences inside this string.
 module.exports = String.raw`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Field Shift - Decision Support System</title>
+<title>TerraTech - Decision Support System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -39,11 +39,11 @@ tailwind.config = {
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
     <div class="flex items-center gap-3 min-w-0">
       <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shrink-0">
-        <i class="fa-solid fa-seedling text-lg"></i>
+        <i class="fa-solid fa-earth-asia text-lg"></i>
       </div>
       <div class="min-w-0">
         <div class="flex items-center gap-2">
-          <span class="font-extrabold text-lg tracking-tight text-slate-900">Field Shift</span>
+          <span class="font-extrabold text-lg tracking-tight text-slate-900">TerraTech</span>
           <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">v1.1 • DSS</span>
         </div>
         <p class="text-[11px] text-slate-400 font-medium truncate">Crop Rotation Decision Support • ESP32 Sensor + Satellite</p>
@@ -326,7 +326,7 @@ tailwind.config = {
 
 <footer class="bg-white border-t border-slate-200 mt-12 py-6 text-xs text-slate-500">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
-    <div><span class="font-extrabold text-slate-800">Field Shift DSS</span> • ESP32 Sensor + NASA MERRA-2 Satellite Data</div>
+    <div><span class="font-extrabold text-slate-800">TerraTech DSS</span> • ESP32 Sensor + NASA MERRA-2 Satellite Data</div>
     <div>Target Region: Lampung Province, Indonesia</div>
   </div>
 </footer>
@@ -666,10 +666,10 @@ function updateLocation(v) { state.region = v; savePrefs(); renderLocation(); re
 function selectCrop(k) { state.crop = k; savePrefs(); renderParams(); renderRecommendation(); }
 function togglePriority(k) { state.pr[k] = !state.pr[k]; savePrefs(); renderParams(); renderRecommendation(); }
 
-function savePrefs() { try { localStorage.setItem('fieldshift', JSON.stringify({ crop: state.crop, pr: state.pr, region: state.region })); } catch (e) {} }
+function savePrefs() { try { localStorage.setItem('terratech', JSON.stringify({ crop: state.crop, pr: state.pr, region: state.region })); } catch (e) {} }
 function loadPrefs() {
   try {
-    var p = JSON.parse(localStorage.getItem('fieldshift') || 'null');
+    var p = JSON.parse(localStorage.getItem('terratech') || 'null');
     if (p) {
       if (CROPS[p.crop]) state.crop = p.crop;
       if (p.pr) state.pr = p.pr;

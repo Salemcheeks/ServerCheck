@@ -93,7 +93,7 @@ app.get('/api/sensor', async (req, res) => {
   }
 });
 
-// Field Shift dashboard
+// TerraTech dashboard
 app.get('/', (req, res) => {
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.send(dashboardHtml);
