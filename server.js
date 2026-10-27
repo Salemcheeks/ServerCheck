@@ -1,95 +1,106 @@
 const express = require('express');
 const cors = require('cors');
+const dashboardHtml = require('./dashboard');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const MAX_LOGS = 30;
 
 app.use(cors());
 app.use(express.json());
 
-// Menyimpan 30 data terakhir di memori RAM untuk pengetesan
-let sensorLogs = [];
+// ------------------------------------------------------------------
+// Data storage
+// Default: in-memory (may be lost or split across instances on Vercel).
+// Optional: Upstash Redis (Vercel Marketplace) -> used automatically
+// when the environment variables below are present.
+// ------------------------------------------------------------------
+const REDIS_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+const useRedis = Boolean(REDIS_URL && REDIS_TOKEN);
+const KEY = 'sensor_logs';
+let memoryLogs = [];
 
-// Endpoint POST & GET dijadikan satu path agar kompatibel dengan opsi PHP
-app.post('/api/sensor', (req, res) => {
-  const { device_id, suhu, kelembapan } = req.body;
+async function redisPipeline(commands) {
+  const res = await fetch(REDIS_URL + '/pipeline', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + REDIS_TOKEN, 'Content-Type': 'application/json' },
+    body: JSON.stringify(commands)
+  });
+  if (!res.ok) throw new Error('Redis HTTP ' + res.status);
+  return res.json();
+}
+
+async function saveLog(entry) {
+  if (!useRedis) {
+    memoryLogs.unshift(entry);
+    if (memoryLogs.length > MAX_LOGS) memoryLogs.length = MAX_LOGS;
+    return;
+  }
+  await redisPipeline([
+    ['LPUSH', KEY, JSON.stringify(entry)],
+    ['LTRIM', KEY, '0', String(MAX_LOGS - 1)]
+  ]);
+}
+
+async function getLogs() {
+  if (!useRedis) return memoryLogs;
+  const [r] = await redisPipeline([['LRANGE', KEY, '0', String(MAX_LOGS - 1)]]);
+  return (r.result || []).map((s) => JSON.parse(s));
+}
+
+// ------------------------------------------------------------------
+// API (unchanged for the ESP32: POST JSON { device_id, suhu, kelembapan })
+//   suhu = temperature (°C), kelembapan = humidity / moisture (%)
+// ------------------------------------------------------------------
+app.post('/api/sensor', async (req, res) => {
+  const { device_id, suhu, kelembapan } = req.body || {};
 
   if (suhu === undefined || kelembapan === undefined) {
-    return res.status(400).json({ status: 'error', message: 'Data suhu atau kelembapan kosong' });
+    return res.status(400).json({ status: 'error', message: 'Temperature or humidity value is missing' });
+  }
+  if (Number.isNaN(Number(suhu)) || Number.isNaN(Number(kelembapan))) {
+    return res.status(400).json({ status: 'error', message: 'Temperature and humidity must be numbers' });
   }
 
+  const now = Date.now();
   const entry = {
-    id: Date.now(),
-    device_id: device_id || 'ESP32-01',
+    id: now,
+    ts: now,
+    device_id: String(device_id || 'ESP32-01').slice(0, 40),
     suhu: Number(suhu),
     kelembapan: Number(kelembapan),
-    waktu: new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' })
+    waktu: new Date(now).toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta' })
   };
 
-  sensorLogs.unshift(entry);
-  if (sensorLogs.length > 30) sensorLogs.pop();
-
-  console.log(`[MASUK] ${entry.device_id} | Suhu: ${entry.suhu}°C | Lembap: ${entry.kelembapan}%`);
-  res.status(200).json({ status: 'success', data: entry });
+  try {
+    await saveLog(entry);
+    console.log(`[IN] ${entry.device_id} | Temp: ${entry.suhu}°C | Humidity: ${entry.kelembapan}%`);
+    res.status(200).json({ status: 'success', data: entry });
+  } catch (err) {
+    console.error('Failed to save:', err.message);
+    res.status(500).json({ status: 'error', message: 'Failed to save data' });
+  }
 });
 
-app.get('/api/sensor', (req, res) => {
-  res.json(sensorLogs);
+app.get('/api/sensor', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    res.json(await getLogs());
+  } catch (err) {
+    console.error('Failed to read:', err.message);
+    res.status(500).json({ status: 'error', message: 'Failed to read data' });
+  }
 });
 
-// Halaman Dashboard Monitoring
+// Field Shift dashboard
 app.get('/', (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="id">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Monitor Telemetri ESP32</title>
-      <style>
-        body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; padding: 24px; margin: 0; }
-        .wrap { max-width: 820px; margin: auto; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; }
-        .label { font-size: 0.9rem; color: #94a3b8; }
-        .val { font-size: 2.2rem; font-weight: 700; color: #38bdf8; margin-top: 6px; }
-        table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; }
-        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #334155; }
-        th { background: #334155; color: #e2e8f0; }
-      </style>
-    </head>
-    <body>
-      <div class="wrap">
-        <h2>Dashboard Pengujian Data ESP32 (Node.js)</h2>
-        <div class="grid">
-          <div class="card"><div class="label">Perangkat Terakhir</div><div id="dev" class="val">-</div></div>
-          <div class="card"><div class="label">Suhu (Temperature)</div><div id="temp" class="val">-- °C</div></div>
-          <div class="card"><div class="label">Kelembapan (Humidity)</div><div id="hum" class="val">-- %</div></div>
-        </div>
-        <table>
-          <thead><tr><th>Waktu (WIB)</th><th>ID Perangkat</th><th>Suhu (°C)</th><th>Kelembapan (%)</th></tr></thead>
-          <tbody id="log-body"></tbody>
-        </table>
-      </div>
-      <script>
-        async function loadLogs() {
-          const res = await fetch('/api/sensor');
-          const data = await res.json();
-          if (data.length > 0) {
-            document.getElementById('dev').innerText = data[0].device_id;
-            document.getElementById('temp').innerText = data[0].suhu + ' °C';
-            document.getElementById('hum').innerText = data[0].kelembapan + ' %';
-          }
-          document.getElementById('log-body').innerHTML = data.map(r =>
-            '<tr><td>' + r.waktu + '</td><td>' + r.device_id + '</td><td>' + r.suhu + '</td><td>' + r.kelembapan + '</td></tr>'
-          ).join('');
-        }
-        setInterval(loadLogs, 2000);
-        loadLogs();
-      </script>
-    </body>
-    </html>
-  `);
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.send(dashboardHtml);
 });
 
-app.listen(PORT, () => console.log(`Server berjalan di port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`Server running on port ${PORT} (storage: ${useRedis ? 'Upstash Redis' : 'memory'})`)
+);
+
+module.exports = app;
