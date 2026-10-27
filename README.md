@@ -1,10 +1,10 @@
-# Field Shift - Decision Support System (DSS) with ESP32 IoT Integration
+Field Shift: TerraTech
 
 ![Version](https://img.shields.io/badge/version-1.0.0-emerald)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-ESP32%20%7C%20Node.js%20%7C%20PHP-green)
 
-**Field Shift** is a smart agricultural Decision Support System (DSS) that combines real-time IoT field telemetry from **ESP32** sensors with satellite data parameters (inspired by NASA MERRA-2 climate data) to optimize crop rotation, prevent soil degradation, and improve water efficiency.
+**TerraTech** is a smart agricultural Decision Support System (DSS) that combines real-time IoT field telemetry from **ESP32** sensors with satellite data parameters (inspired by NASA MERRA-2 climate data) to optimize crop rotation, prevent soil degradation, and improve water efficiency.
 
 ---
 
